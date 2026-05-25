@@ -270,6 +270,15 @@ td.col-address .addr-line {
   white-space: nowrap;
 }
 
+td.col-attr, th.col-attr {
+  max-width: 90px;
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 td.col-notes, th.col-notes {
   max-width: 240px;
   font-size: 12px;

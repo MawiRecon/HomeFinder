@@ -502,6 +502,8 @@ function renderTable() {
       <td class="num">${l.pricePerSqft != null ? '$' + l.pricePerSqft.toFixed(2) : ''}</td>
       <td class="num col-lc">${(() => { const d = getLcDistance(l); return d == null ? '' : d.toFixed(1); })()}</td>
       <td class="num">${star}</td>
+      <td class="col-attr" title="${escapeAttr(safe(l.yard))}">${escapeHtml(safe(l.yard))}</td>
+      <td class="col-attr" title="${escapeAttr(safe(l.carpet))}">${escapeHtml(safe(l.carpet))}</td>
       <td>${tags}</td>
       <td class="col-notes" title="${escapeAttr(notesText)}"><div class="notes-text">${escapeHtml(notesText)}</div></td>
       <td>${l.url ? `<a class="row-link" href="${escapeAttr(l.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">↗</a>` : ''}</td>
