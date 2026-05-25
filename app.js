@@ -7,7 +7,7 @@ const DATA_PATH = 'data/listings.json';
 const state = {
   listings: [],
   fileSha: null,
-  config: { owner: '', repo: '', branch: 'main', pat: '' },
+  config: { owner: '', repo: '', branch: 'main', pat: '', lcAnchor: { query: '', lat: null, lng: null, displayName: '' } },
   view: 'table',
   sort: { key: 'addedAt', dir: 'desc' },
   filter: { status: '', search: '' },
@@ -23,7 +23,10 @@ function loadLocal() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return;
     const obj = JSON.parse(raw);
-    if (obj.config) Object.assign(state.config, obj.config);
+    if (obj.config) {
+      Object.assign(state.config, obj.config);
+      if (!state.config.lcAnchor) state.config.lcAnchor = { query: '', lat: null, lng: null, displayName: '' };
+    }
     if (Array.isArray(obj.listings)) state.listings = obj.listings;
     if (obj.fileSha) state.fileSha = obj.fileSha;
   } catch (e) { console.warn('loadLocal failed', e); }
@@ -42,6 +45,31 @@ function nowIso() { return new Date().toISOString(); }
 function fmtMoney(n) { return n == null || n === '' ? '' : '$' + Number(n).toLocaleString(); }
 function fmtNum(n, digits = 0) { return n == null || n === '' ? '' : Number(n).toFixed(digits); }
 function safe(s) { return (s == null ? '' : String(s)); }
+
+function distanceMiles(lat1, lng1, lat2, lng2) {
+  const R = 3958.8;
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+function getLcDistance(l) {
+  const a = state.config.lcAnchor;
+  if (!a || a.lat == null || a.lng == null) return null;
+  if (!Number.isFinite(+l.lat) || !Number.isFinite(+l.lng)) return null;
+  return distanceMiles(a.lat, a.lng, +l.lat, +l.lng);
+}
+
+async function geocodeNominatim(query) {
+  const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(query);
+  const res = await fetch(url, { headers: { 'Accept-Language': 'en-US,en' } });
+  if (!res.ok) throw new Error('Geocoding HTTP ' + res.status);
+  const arr = await res.json();
+  if (!arr.length) throw new Error('No results for: ' + query);
+  return { lat: +arr[0].lat, lng: +arr[0].lon, displayName: arr[0].display_name };
+}
 
 function computeDerived(listing) {
   if (listing.price && listing.sqft) {
@@ -205,8 +233,9 @@ function getVisible() {
   if (state.filter.status) rows = rows.filter(l => l.status === state.filter.status);
   const { key, dir } = state.sort;
   const mul = dir === 'asc' ? 1 : -1;
+  const valOf = (l) => key === 'lcDistance' ? getLcDistance(l) : l[key];
   rows.sort((a, b) => {
-    const av = a[key], bv = b[key];
+    const av = valOf(a), bv = valOf(b);
     if (av == null && bv == null) return 0;
     if (av == null) return 1;
     if (bv == null) return -1;
@@ -243,6 +272,7 @@ function renderTable() {
       <td class="num">${safe(l.baths)}</td>
       <td class="num">${safe(l.sqft)}</td>
       <td class="num">${l.pricePerSqft != null ? '$' + l.pricePerSqft.toFixed(2) : ''}</td>
+      <td class="num col-lc">${(() => { const d = getLcDistance(l); return d == null ? '' : d.toFixed(1); })()}</td>
       <td class="num">${star}</td>
       <td>${tags}</td>
       <td>${l.url ? `<a class="row-link" href="${escapeAttr(l.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">↗</a>` : ''}</td>
@@ -447,6 +477,49 @@ function loadConfigUi() {
   $('#cfg-repo').value = state.config.repo;
   $('#cfg-branch').value = state.config.branch || 'main';
   $('#cfg-pat').value = state.config.pat;
+  $('#cfg-lc').value = state.config.lcAnchor?.query || '';
+  renderLcStatus();
+}
+
+function renderLcStatus() {
+  const a = state.config.lcAnchor;
+  const el = $('#cfg-lc-status');
+  if (!el) return;
+  el.className = 'status-msg';
+  if (a && a.lat != null && a.lng != null) {
+    el.classList.add('ok');
+    el.textContent = `Anchored at ${a.displayName || (a.lat.toFixed(4) + ', ' + a.lng.toFixed(4))}`;
+  } else {
+    el.textContent = '';
+  }
+}
+
+async function saveLcAnchor() {
+  const q = $('#cfg-lc').value.trim();
+  const status = $('#cfg-lc-status');
+  status.className = 'status-msg';
+  if (!q) { status.textContent = 'Enter an address or city.'; status.classList.add('err'); return; }
+  status.textContent = 'Geocoding…';
+  try {
+    const r = await geocodeNominatim(q);
+    state.config.lcAnchor = { query: q, lat: r.lat, lng: r.lng, displayName: r.displayName };
+    saveLocal();
+    renderLcStatus();
+    renderTable();
+    showToast('LC anchor set', 'ok');
+  } catch (e) {
+    status.textContent = 'Failed: ' + e.message;
+    status.classList.add('err');
+  }
+}
+
+function clearLcAnchor() {
+  state.config.lcAnchor = { query: '', lat: null, lng: null, displayName: '' };
+  $('#cfg-lc').value = '';
+  saveLocal();
+  renderLcStatus();
+  renderTable();
+  showToast('LC anchor cleared');
 }
 async function saveConfig() {
   state.config.owner = $('#cfg-owner').value.trim();
@@ -522,6 +595,9 @@ function bindEvents() {
   $('#cfg-pull').addEventListener('click', pullFromGitHub);
   $('#cfg-push').addEventListener('click', pushToGitHub);
   $('#cfg-reset').addEventListener('click', resetLocal);
+  $('#cfg-lc-save').addEventListener('click', saveLcAnchor);
+  $('#cfg-lc-clear').addEventListener('click', clearLcAnchor);
+  $('#cfg-lc').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saveLcAnchor(); } });
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !$('#edit-modal').hidden) closeModal();

@@ -60,6 +60,7 @@
               <th data-sort="baths" class="num">Ba</th>
               <th data-sort="sqft" class="num">Sqft</th>
               <th data-sort="pricePerSqft" class="num">$/sqft</th>
+              <th data-sort="lcDistance" class="num col-lc">LC mi</th>
               <th data-sort="rating" class="num">★</th>
               <th>Tags</th>
               <th></th>
@@ -118,6 +119,21 @@
             <button class="btn ghost" id="cfg-push">Push to GitHub</button>
           </div>
           <p id="cfg-status" class="status-msg"></p>
+        </div>
+
+        <div class="card">
+          <h2>Distance reference</h2>
+          <p class="muted">Computes straight-line ("as the crow flies") miles from each listing
+            to a fixed address. Powers the <strong>LC mi</strong> column in the table.
+            Geocoded once using OpenStreetMap; stored only in your browser.</p>
+          <label>Distance from LC
+            <input type="text" id="cfg-lc" placeholder="Herndon, VA   or   1600 Pennsylvania Ave, Washington, DC" />
+          </label>
+          <div class="row">
+            <button class="btn primary" id="cfg-lc-save">Save & geocode</button>
+            <button class="btn ghost" id="cfg-lc-clear">Clear</button>
+          </div>
+          <p id="cfg-lc-status" class="status-msg"></p>
         </div>
 
         <div class="card">
