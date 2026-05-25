@@ -2,7 +2,7 @@
   {
     "id": "k6ej3i3gnwz8",
     "addedAt": "2026-05-25T19:29:05.972Z",
-    "updatedAt": "2026-05-25T19:29:05.972Z",
+    "updatedAt": "2026-05-25T19:29:35.671Z",
     "status": "interested",
     "tags": [],
     "url": "https://www.faradaypark.com/",
@@ -21,7 +21,8 @@
     "parking": "Assigned parking",
     "laundry": "In unit laundry",
     "photoUrl": "https://images1.apartments.com/i2/ocbleaGJ0TAbdKUbQ8_FapVfqd3VKKUTSe1NK6vKW5w/110/faraday-park-reston-va-building-photo.jpg",
-    "pricePerSqft": 4.38
+    "pricePerSqft": 4.38,
+    "notes": "Faraday Park Apts"
   },
   {
     "id": "u4xd4c8n3mt5",
