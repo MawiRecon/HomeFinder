@@ -176,13 +176,26 @@
             if (o.homeType) set('homeType', String(o.homeType).replace(/_/g, ' ').toLowerCase());
             if (o.hiResImageLink) set('photoUrl', o.hiResImageLink);
           });
-          // Also try gdpClientCache (for-sale single home)
+          // Also try gdpClientCache (for-sale single home) — it's a JSON-encoded string,
+          // so the outer walk can't recurse in unless we parse it explicitly.
           walk(data, function (o) {
-            if (typeof o === 'object' && o.gdpClientCache) {
+            if (o.gdpClientCache && typeof o.gdpClientCache === 'string') {
               try {
                 var cache = JSON.parse(o.gdpClientCache);
                 walk(cache, function (c) {
-                  if (c.property) walk(c.property, arguments.callee);
+                  if (c.zpid && !out.zpid) set('zpid', String(c.zpid));
+                  if (typeof c.price === 'number') set('price', c.price);
+                  if (c.bedrooms != null) set('beds', num(c.bedrooms));
+                  if (c.bathrooms != null) set('baths', num(c.bathrooms));
+                  if (c.livingArea) set('sqft', num(c.livingArea));
+                  if (c.latitude && c.longitude) {
+                    set('lat', num(c.latitude));
+                    set('lng', num(c.longitude));
+                  }
+                  if (c.streetAddress) set('address', c.streetAddress);
+                  if (c.city) set('city', c.city);
+                  if (c.state) set('state', c.state);
+                  if (c.zipcode) set('zip', c.zipcode);
                 });
               } catch (e) {}
             }
@@ -224,11 +237,11 @@
 
   function compileBookmarklet(dashboardUrl) {
     var src = BOOKMARKLET_SOURCE.toString();
-    src = src.replace(/__DASHBOARD_URL__/g, dashboardUrl);
-    // Strip line comments and collapse whitespace conservatively (don't break regexes / strings)
+    // Strip line comments BEFORE substituting the URL — otherwise the // in https:// gets eaten.
     src = src.replace(/\/\/[^\n]*\n/g, '\n');
     src = src.replace(/\n\s*/g, ' ');
     src = src.replace(/\s{2,}/g, ' ');
+    src = src.replace(/__DASHBOARD_URL__/g, dashboardUrl);
     return 'javascript:(' + src + ')();void 0;';
   }
 
