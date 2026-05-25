@@ -132,6 +132,24 @@
         </div>
 
         <div class="card">
+          <h2>Shared access</h2>
+          <p class="muted">Embed a token in the deployed site so anyone with the URL can use the
+            dashboard without their own GitHub account. <strong>Not security</strong> &mdash;
+            anyone reading the code can decode it. Use a fine-grained PAT separate from your
+            personal one. Worst case if abused: someone edits your <code>listings.json</code>
+            (recoverable via git history).</p>
+          <p class="muted small">Current: <span id="embed-status" class="muted">checking…</span></p>
+          <label>PAT to embed (separate from your personal one)
+            <input type="password" id="embed-pat-input" placeholder="github_pat_..." autocomplete="off" />
+          </label>
+          <div class="row">
+            <button class="btn primary" id="embed-save">Save embedded token</button>
+            <button class="btn danger" id="embed-clear">Clear</button>
+          </div>
+          <p id="embed-msg" class="status-msg"></p>
+        </div>
+
+        <div class="card">
           <h2>Distance reference</h2>
           <p class="muted">Computes straight-line ("as the crow flies") miles from each listing
             to a fixed address. Powers the <strong>LC mi</strong> column in the table.
