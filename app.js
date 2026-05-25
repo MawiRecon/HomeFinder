@@ -50,6 +50,7 @@ const state = {
   view: 'table',
   sort: { key: 'addedAt', dir: 'desc' },
   filter: { status: '', search: '' },
+  showRejected: false,
   editingId: null,
   syncStatus: 'unconfigured', // unconfigured | ok | dirty | error
   map: null,
@@ -472,6 +473,35 @@ function getVisible() {
   return rows;
 }
 
+function renderRow(l, extraClass = '') {
+  const tags = (l.tags || []).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('');
+  const star = l.rating ? '★'.repeat(l.rating) : '';
+  const thumb = l.photoUrl
+    ? `<img class="thumb" src="${escapeAttr(l.photoUrl)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none'">`
+    : `<span class="thumb thumb-empty" aria-hidden="true"></span>`;
+  const notesText = safe(l.notes);
+  return `<tr data-id="${l.id}"${extraClass ? ` class="${extraClass}"` : ''}>
+    <td class="col-photo">${thumb}</td>
+    <td class="col-status"><span class="status-pill ${l.status}">${l.status || ''}</span></td>
+    <td class="col-address">
+      <div class="addr-line" title="${escapeAttr(l.address || '')}">${escapeHtml(l.address || '(no address)')}</div>
+      ${l.city || l.state ? `<div class="muted small addr-line">${escapeHtml([l.city, l.state, l.zip].filter(Boolean).join(', '))}</div>` : ''}
+    </td>
+    <td class="num">${fmtMoney(l.price)}</td>
+    <td class="num">${safe(l.beds)}</td>
+    <td class="num">${safe(l.baths)}</td>
+    <td class="num">${safe(l.sqft)}</td>
+    <td class="num">${l.pricePerSqft != null ? '$' + l.pricePerSqft.toFixed(2) : ''}</td>
+    <td class="num col-lc">${(() => { const d = getLcDistance(l); return d == null ? '' : d.toFixed(1); })()}</td>
+    <td class="num">${star}</td>
+    <td class="col-attr" title="${escapeAttr(safe(l.yard))}">${escapeHtml(safe(l.yard))}</td>
+    <td class="col-attr" title="${escapeAttr(safe(l.carpet))}">${escapeHtml(safe(l.carpet))}</td>
+    <td>${tags}</td>
+    <td class="col-notes" title="${escapeAttr(notesText)}"><div class="notes-text">${escapeHtml(notesText)}</div></td>
+    <td>${l.url ? `<a class="row-link" href="${escapeAttr(l.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">↗</a>` : ''}</td>
+  </tr>`;
+}
+
 function renderTable() {
   const tbody = $('#listings-tbody');
   const rows = getVisible();
@@ -481,34 +511,26 @@ function renderTable() {
   } else {
     $('#empty-state').hidden = true;
   }
-  tbody.innerHTML = rows.map(l => {
-    const tags = (l.tags || []).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('');
-    const star = l.rating ? '★'.repeat(l.rating) : '';
-    const thumb = l.photoUrl
-      ? `<img class="thumb" src="${escapeAttr(l.photoUrl)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none'">`
-      : `<span class="thumb thumb-empty" aria-hidden="true"></span>`;
-    const notesText = safe(l.notes);
-    return `<tr data-id="${l.id}">
-      <td class="col-photo">${thumb}</td>
-      <td class="col-status"><span class="status-pill ${l.status}">${l.status || ''}</span></td>
-      <td class="col-address">
-        <div class="addr-line" title="${escapeAttr(l.address || '')}">${escapeHtml(l.address || '(no address)')}</div>
-        ${l.city || l.state ? `<div class="muted small addr-line">${escapeHtml([l.city, l.state, l.zip].filter(Boolean).join(', '))}</div>` : ''}
-      </td>
-      <td class="num">${fmtMoney(l.price)}</td>
-      <td class="num">${safe(l.beds)}</td>
-      <td class="num">${safe(l.baths)}</td>
-      <td class="num">${safe(l.sqft)}</td>
-      <td class="num">${l.pricePerSqft != null ? '$' + l.pricePerSqft.toFixed(2) : ''}</td>
-      <td class="num col-lc">${(() => { const d = getLcDistance(l); return d == null ? '' : d.toFixed(1); })()}</td>
-      <td class="num">${star}</td>
-      <td class="col-attr" title="${escapeAttr(safe(l.yard))}">${escapeHtml(safe(l.yard))}</td>
-      <td class="col-attr" title="${escapeAttr(safe(l.carpet))}">${escapeHtml(safe(l.carpet))}</td>
-      <td>${tags}</td>
-      <td class="col-notes" title="${escapeAttr(notesText)}"><div class="notes-text">${escapeHtml(notesText)}</div></td>
-      <td>${l.url ? `<a class="row-link" href="${escapeAttr(l.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">↗</a>` : ''}</td>
-    </tr>`;
-  }).join('');
+
+  // Split active vs rejected only when no explicit status filter is active.
+  let activeRows, rejectedRows;
+  if (state.filter.status) {
+    activeRows = rows;
+    rejectedRows = [];
+  } else {
+    activeRows = rows.filter(l => l.status !== 'rejected');
+    rejectedRows = rows.filter(l => l.status === 'rejected');
+  }
+
+  let html = activeRows.map(l => renderRow(l)).join('');
+  if (rejectedRows.length > 0) {
+    html += `<tr class="rejected-toggle-row"><td colspan="15">
+      <button type="button" class="rejected-toggle"><span class="caret">▶</span> ${rejectedRows.length} rejected</button>
+    </td></tr>`;
+    html += rejectedRows.map(l => renderRow(l, 'rejected-row')).join('');
+  }
+  tbody.innerHTML = html;
+  tbody.classList.toggle('show-rejected', state.showRejected);
 
   $$('#listings-table th[data-sort]').forEach(th => {
     th.classList.remove('sorted-asc', 'sorted-desc');
@@ -913,6 +935,15 @@ function bindEvents() {
   });
 
   $('#listings-tbody').addEventListener('click', (e) => {
+    // Rejected-section toggle: expand/collapse hidden rejected rows
+    if (e.target.closest('.rejected-toggle')) {
+      e.stopPropagation();
+      state.showRejected = !state.showRejected;
+      $('#listings-tbody').classList.toggle('show-rejected', state.showRejected);
+      const caret = $('#listings-tbody .rejected-toggle .caret');
+      if (caret) caret.textContent = state.showRejected ? '▼' : '▶';
+      return;
+    }
     const tr = e.target.closest('tr[data-id]');
     if (!tr) return;
     // Thumbnail click → open lightbox, don't open the edit modal

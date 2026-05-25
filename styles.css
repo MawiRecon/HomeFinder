@@ -279,6 +279,32 @@ td.col-attr, th.col-attr {
   text-overflow: ellipsis;
 }
 
+tbody:not(.show-rejected) .rejected-row { display: none; }
+tbody .rejected-row { opacity: 0.55; }
+tbody .rejected-row:hover { opacity: 1; }
+
+.rejected-toggle-row { background: var(--surface-2); }
+.rejected-toggle-row td { padding: 6px 12px; border-top: 1px solid var(--border); }
+.rejected-toggle-row:hover { background: var(--surface-2); }
+.rejected-toggle {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 4px 0;
+}
+.rejected-toggle:hover { color: var(--text); }
+.rejected-toggle .caret {
+  display: inline-block;
+  width: 12px;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
 td.col-notes, th.col-notes {
   max-width: 240px;
   font-size: 12px;
