@@ -162,11 +162,35 @@ async function pullFromGitHub() {
   }
 }
 
+function mergeListings(local, remote) {
+  const byId = new Map();
+  for (const r of remote) byId.set(r.id, r);
+  for (const l of local) {
+    const r = byId.get(l.id);
+    if (!r) { byId.set(l.id, l); continue; }
+    const lt = new Date(l.updatedAt || 0).getTime();
+    const rt = new Date(r.updatedAt || 0).getTime();
+    byId.set(l.id, lt >= rt ? l : r);
+  }
+  return Array.from(byId.values());
+}
+
 async function pushToGitHub() {
   if (!isConfigured()) { showToast('Configure GitHub first', 'err'); return; }
   setSync('syncing', 'Pushing…');
   try {
-    const newSha = await ghPut(state.listings, state.fileSha);
+    let newSha;
+    try {
+      newSha = await ghPut(state.listings, state.fileSha);
+    } catch (e) {
+      if (!/\b409\b/.test(e.message)) throw e;
+      // Stale SHA — remote changed since we loaded. Fetch, merge, retry once.
+      const remote = await ghGet();
+      state.listings = mergeListings(state.listings, remote.listings).map(computeDerived);
+      render();
+      newSha = await ghPut(state.listings, remote.sha);
+      showToast('Resolved conflict — merged with remote', 'ok');
+    }
     state.fileSha = newSha;
     saveLocal();
     setSync('ok');
