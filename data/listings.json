@@ -89,8 +89,8 @@
   {
     "id": "gyiixtv3srvq",
     "addedAt": "2026-05-25T19:04:53.030Z",
-    "updatedAt": "2026-05-25T19:04:53.030Z",
-    "status": "interested",
+    "updatedAt": "2026-05-25T19:57:51.991Z",
+    "status": "rejected",
     "tags": [],
     "url": "https://www.zillow.com/homedetails/11404-Turnmill-Ln-Reston-VA-20191/51738581_zpid/?utm_campaign=zillowwebmessage&utm_medium=referral&utm_source=txtshare",
     "address": "11404 Turnmill Ln",
@@ -108,7 +108,12 @@
     "parking": "2 Parking spaces parking",
     "laundry": "In unit laundry",
     "photoUrl": "https://photos.zillowstatic.com/fp/54a64e00c661cac2dcf2fa16904c6ce7-cc_ft_1536.jpg",
-    "pricePerSqft": 2.67
+    "pricePerSqft": 2.67,
+    "availableDate": "",
+    "yard": "",
+    "carpet": "",
+    "rating": null,
+    "notes": ""
   },
   {
     "id": "np459vp0qbyb",
