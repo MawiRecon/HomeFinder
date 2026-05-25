@@ -31,8 +31,8 @@
   {
     "id": "u4xd4c8n3mt5",
     "addedAt": "2026-05-25T19:13:19.673Z",
-    "updatedAt": "2026-05-25T19:29:42.752Z",
-    "status": "interested",
+    "updatedAt": "2026-05-25T19:57:44.132Z",
+    "status": "rejected",
     "tags": [],
     "url": "https://www.zillow.com/homedetails/1654-Sierra-Woods-Dr-Reston-VA-20194/51718244_zpid/?utm_campaign=zillowwebmessage&utm_medium=referral&utm_source=txtshare",
     "address": "1654 Sierra Woods Dr",
@@ -51,7 +51,11 @@
     "laundry": "In unit laundry",
     "photoUrl": "https://photos.zillowstatic.com/fp/e1a91a3cc8944b8a983fca69300312cd-cc_ft_1536.jpg",
     "pricePerSqft": 1.87,
-    "notes": "test note"
+    "notes": "test note",
+    "availableDate": "",
+    "yard": "",
+    "carpet": "",
+    "rating": null
   },
   {
     "id": "a9b80a42txsa",
