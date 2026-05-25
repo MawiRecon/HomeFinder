@@ -1,0 +1,545 @@
+/* HomeFinder — dashboard logic */
+'use strict';
+
+const STORAGE_KEY = 'homefinder.v1';
+const DATA_PATH = 'data/listings.json';
+
+const state = {
+  listings: [],
+  fileSha: null,
+  config: { owner: '', repo: '', branch: 'main', pat: '' },
+  view: 'table',
+  sort: { key: 'addedAt', dir: 'desc' },
+  filter: { status: '', search: '' },
+  editingId: null,
+  syncStatus: 'unconfigured', // unconfigured | ok | dirty | error
+  map: null,
+  markers: [],
+};
+
+/* ---------- persistence (local cache) ---------- */
+function loadLocal() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const obj = JSON.parse(raw);
+    if (obj.config) Object.assign(state.config, obj.config);
+    if (Array.isArray(obj.listings)) state.listings = obj.listings;
+    if (obj.fileSha) state.fileSha = obj.fileSha;
+  } catch (e) { console.warn('loadLocal failed', e); }
+}
+function saveLocal() {
+  const { config, listings, fileSha } = state;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ config, listings, fileSha }));
+}
+
+/* ---------- helpers ---------- */
+const $ = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+
+function uid() { return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4); }
+function nowIso() { return new Date().toISOString(); }
+function fmtMoney(n) { return n == null || n === '' ? '' : '$' + Number(n).toLocaleString(); }
+function fmtNum(n, digits = 0) { return n == null || n === '' ? '' : Number(n).toFixed(digits); }
+function safe(s) { return (s == null ? '' : String(s)); }
+
+function computeDerived(listing) {
+  if (listing.price && listing.sqft) {
+    listing.pricePerSqft = +(Number(listing.price) / Number(listing.sqft)).toFixed(2);
+  } else {
+    listing.pricePerSqft = null;
+  }
+  return listing;
+}
+
+function showToast(msg, kind = '') {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.className = 'toast ' + kind;
+  t.hidden = false;
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => { t.hidden = true; }, 2800);
+}
+
+/* ---------- sync status ---------- */
+function setSync(status, label) {
+  state.syncStatus = status;
+  const badge = $('#sync-badge');
+  badge.className = 'sync-badge ' + (status === 'ok' ? 'ok' : status === 'dirty' ? 'dirty' : status === 'error' ? 'error' : '');
+  $('#sync-badge .label').textContent = label || ({
+    unconfigured: 'Not configured',
+    ok: 'Synced',
+    dirty: 'Unsaved changes',
+    error: 'Sync error',
+    syncing: 'Syncing…',
+  }[status] || status);
+}
+
+/* ---------- GitHub Contents API ---------- */
+function isConfigured() {
+  const { owner, repo, pat } = state.config;
+  return !!(owner && repo && pat);
+}
+
+async function ghGet() {
+  const { owner, repo, branch, pat } = state.config;
+  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${DATA_PATH}?ref=${encodeURIComponent(branch || 'main')}`;
+  const res = await fetch(url, {
+    headers: { 'Authorization': `Bearer ${pat}`, 'Accept': 'application/vnd.github+json' },
+  });
+  if (res.status === 404) return { sha: null, listings: [] };
+  if (!res.ok) throw new Error(`GET failed: ${res.status} ${await res.text()}`);
+  const data = await res.json();
+  const text = decodeURIComponent(escape(atob(data.content.replace(/\s/g, ''))));
+  let listings = [];
+  try { listings = JSON.parse(text); } catch { listings = []; }
+  if (!Array.isArray(listings)) listings = [];
+  return { sha: data.sha, listings };
+}
+
+async function ghPut(listings, sha) {
+  const { owner, repo, branch, pat } = state.config;
+  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${DATA_PATH}`;
+  const content = btoa(unescape(encodeURIComponent(JSON.stringify(listings, null, 2))));
+  const body = {
+    message: `Update listings (${new Date().toISOString()})`,
+    content,
+    branch: branch || 'main',
+  };
+  if (sha) body.sha = sha;
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Authorization': `Bearer ${pat}`, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`PUT failed: ${res.status} ${await res.text()}`);
+  const data = await res.json();
+  return data.content.sha;
+}
+
+async function pullFromGitHub() {
+  if (!isConfigured()) { showToast('Configure GitHub first', 'err'); return; }
+  setSync('syncing', 'Pulling…');
+  try {
+    const { sha, listings } = await ghGet();
+    state.fileSha = sha;
+    state.listings = listings.map(computeDerived);
+    saveLocal();
+    render();
+    setSync('ok');
+    showToast(`Pulled ${listings.length} listing${listings.length === 1 ? '' : 's'}`, 'ok');
+  } catch (e) {
+    setSync('error');
+    showToast('Pull failed: ' + e.message, 'err');
+  }
+}
+
+async function pushToGitHub() {
+  if (!isConfigured()) { showToast('Configure GitHub first', 'err'); return; }
+  setSync('syncing', 'Pushing…');
+  try {
+    const newSha = await ghPut(state.listings, state.fileSha);
+    state.fileSha = newSha;
+    saveLocal();
+    setSync('ok');
+    showToast('Pushed to GitHub', 'ok');
+  } catch (e) {
+    setSync('error');
+    showToast('Push failed: ' + e.message, 'err');
+  }
+}
+
+/* ---------- CRUD ---------- */
+function findByUrlOrZpid(listing) {
+  if (listing.zpid) {
+    const z = state.listings.find(l => l.zpid && String(l.zpid) === String(listing.zpid));
+    if (z) return z;
+  }
+  if (listing.url) {
+    return state.listings.find(l => l.url === listing.url) || null;
+  }
+  return null;
+}
+
+function upsertListing(input) {
+  const now = nowIso();
+  const existing = input.id ? state.listings.find(l => l.id === input.id) : findByUrlOrZpid(input);
+  if (existing) {
+    Object.assign(existing, input, { updatedAt: now });
+    computeDerived(existing);
+    return existing;
+  }
+  const fresh = {
+    id: uid(),
+    addedAt: now,
+    updatedAt: now,
+    status: 'interested',
+    tags: [],
+    ...input,
+  };
+  computeDerived(fresh);
+  state.listings.unshift(fresh);
+  return fresh;
+}
+
+function deleteListing(id) {
+  state.listings = state.listings.filter(l => l.id !== id);
+}
+
+/* ---------- rendering ---------- */
+function render() {
+  $('#listing-count').textContent = `${state.listings.length} listing${state.listings.length === 1 ? '' : 's'}`;
+  renderTable();
+  if (state.view === 'map') renderMap();
+}
+
+function getVisible() {
+  let rows = state.listings.slice();
+  const q = state.filter.search.trim().toLowerCase();
+  if (q) {
+    rows = rows.filter(l => {
+      const hay = [l.address, l.city, l.state, l.zip, l.notes, (l.tags || []).join(' '), l.homeType].join(' ').toLowerCase();
+      return hay.includes(q);
+    });
+  }
+  if (state.filter.status) rows = rows.filter(l => l.status === state.filter.status);
+  const { key, dir } = state.sort;
+  const mul = dir === 'asc' ? 1 : -1;
+  rows.sort((a, b) => {
+    const av = a[key], bv = b[key];
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * mul;
+    return String(av).localeCompare(String(bv)) * mul;
+  });
+  return rows;
+}
+
+function renderTable() {
+  const tbody = $('#listings-tbody');
+  const rows = getVisible();
+  if (state.listings.length === 0) {
+    tbody.innerHTML = '';
+    $('#empty-state').hidden = false;
+  } else {
+    $('#empty-state').hidden = true;
+  }
+  tbody.innerHTML = rows.map(l => {
+    const tags = (l.tags || []).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('');
+    const star = l.rating ? '★'.repeat(l.rating) : '';
+    return `<tr data-id="${l.id}">
+      <td class="col-status"><span class="status-pill ${l.status}">${l.status || ''}</span></td>
+      <td>
+        <div>${escapeHtml(l.address || '(no address)')}</div>
+        ${l.city || l.state ? `<div class="muted small">${escapeHtml([l.city, l.state, l.zip].filter(Boolean).join(', '))}</div>` : ''}
+      </td>
+      <td class="num">${fmtMoney(l.price)}</td>
+      <td class="num">${safe(l.beds)}</td>
+      <td class="num">${safe(l.baths)}</td>
+      <td class="num">${safe(l.sqft)}</td>
+      <td class="num">${l.pricePerSqft != null ? '$' + l.pricePerSqft.toFixed(2) : ''}</td>
+      <td class="num">${star}</td>
+      <td>${tags}</td>
+      <td>${l.url ? `<a class="row-link" href="${escapeAttr(l.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">↗</a>` : ''}</td>
+    </tr>`;
+  }).join('');
+
+  $$('#listings-table th[data-sort]').forEach(th => {
+    th.classList.remove('sorted-asc', 'sorted-desc');
+    if (th.dataset.sort === state.sort.key) {
+      th.classList.add(state.sort.dir === 'asc' ? 'sorted-asc' : 'sorted-desc');
+    }
+  });
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+function escapeAttr(s) { return escapeHtml(s); }
+
+/* ---------- map ---------- */
+function renderMap() {
+  if (!state.map) {
+    state.map = L.map('map').setView([39.8283, -98.5795], 4); // US center
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap',
+      maxZoom: 19,
+    }).addTo(state.map);
+  }
+  state.markers.forEach(m => state.map.removeLayer(m));
+  state.markers = [];
+
+  const withCoords = state.listings.filter(l => Number.isFinite(+l.lat) && Number.isFinite(+l.lng));
+  if (withCoords.length === 0) return;
+
+  const colors = {
+    interested: '#2f6feb', visited: '#d48a00', applied: '#b347d9',
+    favorited: '#2a9d5f', rejected: '#8a8f99',
+  };
+
+  withCoords.forEach(l => {
+    const color = colors[l.status] || colors.interested;
+    const icon = L.divIcon({
+      className: 'hf-pin',
+      html: `<div style="width:18px;height:18px;border-radius:50%;background:${color};border:2px solid white;box-shadow:0 1px 3px rgba(0,0,0,.4)"></div>`,
+      iconSize: [18, 18],
+      iconAnchor: [9, 9],
+    });
+    const m = L.marker([+l.lat, +l.lng], { icon }).addTo(state.map);
+    const popup = `
+      <strong>${escapeHtml(l.address || '(no address)')}</strong><br>
+      ${l.price ? fmtMoney(l.price) + '/mo · ' : ''}${l.beds || ''}bd ${l.baths || ''}ba ${l.sqft ? '· ' + l.sqft + ' sqft' : ''}
+      <br><a href="#" data-edit-id="${l.id}">Edit</a>${l.url ? ' · <a href="' + escapeAttr(l.url) + '" target="_blank" rel="noopener">Listing ↗</a>' : ''}
+    `;
+    m.bindPopup(popup);
+    m.on('popupopen', (ev) => {
+      const link = ev.popup.getElement().querySelector('a[data-edit-id]');
+      if (link) link.addEventListener('click', (e) => { e.preventDefault(); openEditModal(l.id); });
+    });
+    state.markers.push(m);
+  });
+
+  const group = L.featureGroup(state.markers);
+  state.map.fitBounds(group.getBounds().pad(0.2), { maxZoom: 14 });
+  setTimeout(() => state.map.invalidateSize(), 50);
+}
+
+/* ---------- modal ---------- */
+function openEditModal(id) {
+  state.editingId = id || null;
+  const modal = $('#edit-modal');
+  const form = $('#edit-form');
+  form.reset();
+  const listing = id ? state.listings.find(l => l.id === id) : null;
+  $('#modal-title').textContent = listing ? 'Edit listing' : 'Add listing';
+  $('#delete-btn').hidden = !listing;
+  if (listing) {
+    for (const [k, v] of Object.entries(listing)) {
+      const el = form.elements.namedItem(k);
+      if (!el) continue;
+      if (k === 'tags' && Array.isArray(v)) el.value = v.join(', ');
+      else el.value = v == null ? '' : v;
+    }
+  }
+  modal.hidden = false;
+  setTimeout(() => form.elements.namedItem('address')?.focus(), 50);
+}
+
+function closeModal() {
+  $('#edit-modal').hidden = true;
+  state.editingId = null;
+}
+
+function formToListing(form) {
+  const fd = new FormData(form);
+  const o = {};
+  for (const [k, v] of fd.entries()) {
+    if (v === '') continue;
+    o[k] = v;
+  }
+  ['price', 'beds', 'baths', 'sqft', 'lat', 'lng', 'rating'].forEach(k => {
+    if (o[k] !== undefined) o[k] = Number(o[k]);
+  });
+  if (o.tags) o.tags = o.tags.split(',').map(s => s.trim()).filter(Boolean);
+  return o;
+}
+
+async function handleEditSubmit(e) {
+  e.preventDefault();
+  const data = formToListing(e.target);
+  if (state.editingId) data.id = state.editingId;
+  upsertListing(data);
+  saveLocal();
+  render();
+  closeModal();
+  setSync('dirty');
+  showToast('Saved locally');
+  if (isConfigured()) await pushToGitHub();
+}
+
+async function handleDelete() {
+  if (!state.editingId) return;
+  if (!confirm('Delete this listing?')) return;
+  deleteListing(state.editingId);
+  saveLocal();
+  render();
+  closeModal();
+  setSync('dirty');
+  showToast('Deleted locally');
+  if (isConfigured()) await pushToGitHub();
+}
+
+/* ---------- view switching ---------- */
+function switchView(view) {
+  state.view = view;
+  $$('.tab').forEach(t => t.classList.toggle('active', t.dataset.view === view));
+  $$('.view').forEach(v => v.classList.toggle('active', v.dataset.view === view));
+  if (view === 'map') renderMap();
+}
+
+/* ---------- bookmarklet ?add= handler ---------- */
+function handleAddParam() {
+  const params = new URLSearchParams(window.location.search);
+  const data = params.get('add');
+  if (!data) return;
+  try {
+    const json = decodeURIComponent(escape(atob(data)));
+    const parsed = JSON.parse(json);
+    // Clear the param so refresh doesn't re-add
+    history.replaceState({}, '', window.location.pathname);
+    // Pre-fill modal (don't auto-save — let user review)
+    openEditModal(null);
+    const form = $('#edit-form');
+    for (const [k, v] of Object.entries(parsed)) {
+      const el = form.elements.namedItem(k);
+      if (!el) continue;
+      if (k === 'tags' && Array.isArray(v)) el.value = v.join(', ');
+      else el.value = v == null ? '' : v;
+    }
+    $('#modal-title').textContent = 'Add listing from Zillow';
+    showToast('Captured from Zillow — review and save');
+  } catch (e) {
+    showToast('Could not parse incoming data: ' + e.message, 'err');
+  }
+}
+
+/* ---------- import / export ---------- */
+function exportJson() {
+  const blob = new Blob([JSON.stringify(state.listings, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'listings.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importJson(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const arr = JSON.parse(reader.result);
+      if (!Array.isArray(arr)) throw new Error('Expected an array');
+      if (!confirm(`Import ${arr.length} listings? This replaces your current local list.`)) return;
+      state.listings = arr.map(computeDerived);
+      saveLocal();
+      render();
+      setSync('dirty');
+      showToast(`Imported ${arr.length} listings`);
+    } catch (e) {
+      showToast('Import failed: ' + e.message, 'err');
+    }
+  };
+  reader.readAsText(file);
+}
+
+/* ---------- settings UI ---------- */
+function loadConfigUi() {
+  $('#cfg-owner').value = state.config.owner;
+  $('#cfg-repo').value = state.config.repo;
+  $('#cfg-branch').value = state.config.branch || 'main';
+  $('#cfg-pat').value = state.config.pat;
+}
+async function saveConfig() {
+  state.config.owner = $('#cfg-owner').value.trim();
+  state.config.repo = $('#cfg-repo').value.trim();
+  state.config.branch = $('#cfg-branch').value.trim() || 'main';
+  state.config.pat = $('#cfg-pat').value.trim();
+  saveLocal();
+  const status = $('#cfg-status');
+  status.className = 'status-msg';
+  if (!isConfigured()) {
+    status.textContent = 'Fill in all fields.';
+    status.classList.add('err');
+    setSync('unconfigured');
+    return;
+  }
+  status.textContent = 'Testing…';
+  try {
+    const { sha, listings } = await ghGet();
+    state.fileSha = sha;
+    if (listings.length > 0 && state.listings.length === 0) {
+      state.listings = listings.map(computeDerived);
+    }
+    saveLocal();
+    render();
+    setSync('ok');
+    status.textContent = sha ? `Connected. ${listings.length} listings on remote.` : 'Connected. (No remote file yet — push will create it.)';
+    status.classList.add('ok');
+  } catch (e) {
+    status.textContent = 'Failed: ' + e.message;
+    status.classList.add('err');
+    setSync('error');
+  }
+}
+
+function resetLocal() {
+  if (!confirm('Wipe local listings, token, and settings? Remote GitHub file is unaffected.')) return;
+  localStorage.removeItem(STORAGE_KEY);
+  location.reload();
+}
+
+/* ---------- init ---------- */
+function bindEvents() {
+  $('#add-btn').addEventListener('click', () => openEditModal(null));
+  $$('.tab').forEach(t => t.addEventListener('click', () => switchView(t.dataset.view)));
+  $$('[data-close]').forEach(el => el.addEventListener('click', closeModal));
+  $('#edit-form').addEventListener('submit', handleEditSubmit);
+  $('#delete-btn').addEventListener('click', handleDelete);
+
+  $('#search').addEventListener('input', (e) => { state.filter.search = e.target.value; renderTable(); });
+  $('#filter-status').addEventListener('change', (e) => { state.filter.status = e.target.value; renderTable(); });
+
+  $$('#listings-table th[data-sort]').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.dataset.sort;
+      if (state.sort.key === key) state.sort.dir = state.sort.dir === 'asc' ? 'desc' : 'asc';
+      else { state.sort.key = key; state.sort.dir = 'asc'; }
+      renderTable();
+    });
+  });
+
+  $('#listings-tbody').addEventListener('click', (e) => {
+    const tr = e.target.closest('tr[data-id]');
+    if (!tr) return;
+    if (e.target.closest('a')) return;
+    openEditModal(tr.dataset.id);
+  });
+
+  $('#export-btn').addEventListener('click', exportJson);
+  $('#import-btn').addEventListener('click', () => $('#import-file').click());
+  $('#import-file').addEventListener('change', (e) => { if (e.target.files[0]) importJson(e.target.files[0]); e.target.value = ''; });
+
+  $('#cfg-save').addEventListener('click', saveConfig);
+  $('#cfg-pull').addEventListener('click', pullFromGitHub);
+  $('#cfg-push').addEventListener('click', pushToGitHub);
+  $('#cfg-reset').addEventListener('click', resetLocal);
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !$('#edit-modal').hidden) closeModal();
+  });
+}
+
+async function init() {
+  loadLocal();
+  loadConfigUi();
+  bindEvents();
+  if (isConfigured()) {
+    setSync('syncing', 'Loading…');
+    try {
+      const { sha, listings } = await ghGet();
+      state.fileSha = sha;
+      state.listings = listings.map(computeDerived);
+      saveLocal();
+      setSync('ok');
+    } catch (e) {
+      setSync('error');
+      showToast('Could not load from GitHub: ' + e.message, 'err');
+    }
+  }
+  render();
+  handleAddParam();
+}
+
+init();

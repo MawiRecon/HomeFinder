@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HomeFinder</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossorigin="" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <h1>HomeFinder</h1>
+      <span class="count" id="listing-count">0 listings</span>
+    </div>
+    <nav class="view-tabs" role="tablist">
+      <button class="tab active" data-view="table" role="tab">Table</button>
+      <button class="tab" data-view="map" role="tab">Map</button>
+      <button class="tab" data-view="settings" role="tab">Settings</button>
+    </nav>
+    <div class="header-actions">
+      <span class="sync-badge" id="sync-badge" title="Sync status">
+        <span class="dot"></span>
+        <span class="label">Not configured</span>
+      </span>
+      <button class="btn primary" id="add-btn">+ Add listing</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- TABLE VIEW -->
+    <section class="view view-table active" data-view="table">
+      <div class="toolbar">
+        <input type="search" id="search" placeholder="Search address, notes, tags..." />
+        <select id="filter-status">
+          <option value="">All statuses</option>
+          <option value="interested">Interested</option>
+          <option value="visited">Visited</option>
+          <option value="applied">Applied</option>
+          <option value="favorited">Favorited</option>
+          <option value="rejected">Rejected</option>
+        </select>
+        <div class="spacer"></div>
+        <button class="btn ghost" id="export-btn" title="Download listings.json">Export</button>
+        <button class="btn ghost" id="import-btn" title="Import listings.json">Import</button>
+        <input type="file" id="import-file" accept="application/json" hidden />
+      </div>
+
+      <div class="table-wrap">
+        <table id="listings-table">
+          <thead>
+            <tr>
+              <th data-sort="status" class="col-status">Status</th>
+              <th data-sort="address">Address</th>
+              <th data-sort="price" class="num">Price</th>
+              <th data-sort="beds" class="num">Bd</th>
+              <th data-sort="baths" class="num">Ba</th>
+              <th data-sort="sqft" class="num">Sqft</th>
+              <th data-sort="pricePerSqft" class="num">$/sqft</th>
+              <th data-sort="rating" class="num">★</th>
+              <th>Tags</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="listings-tbody"></tbody>
+        </table>
+        <div class="empty-state" id="empty-state" hidden>
+          <p>No listings yet.</p>
+          <p class="muted">Use the <strong>+ Add listing</strong> button, or set up the bookmarklet
+            in <a href="bookmarklet.html">bookmarklet setup</a> to capture from Zillow with one click.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- MAP VIEW -->
+    <section class="view view-map" data-view="map">
+      <div id="map"></div>
+      <div class="map-legend">
+        <span><i class="dot s-interested"></i>Interested</span>
+        <span><i class="dot s-visited"></i>Visited</span>
+        <span><i class="dot s-applied"></i>Applied</span>
+        <span><i class="dot s-favorited"></i>Favorited</span>
+        <span><i class="dot s-rejected"></i>Rejected</span>
+      </div>
+    </section>
+
+    <!-- SETTINGS VIEW -->
+    <section class="view view-settings" data-view="settings">
+      <div class="settings-grid">
+        <div class="card">
+          <h2>GitHub sync</h2>
+          <p class="muted">Listings are stored as <code>data/listings.json</code> in your repo.
+            The token is saved only in your browser (localStorage).</p>
+          <label>Repo owner
+            <input type="text" id="cfg-owner" placeholder="your-github-username" />
+          </label>
+          <label>Repo name
+            <input type="text" id="cfg-repo" placeholder="HomeFinder" />
+          </label>
+          <label>Branch
+            <input type="text" id="cfg-branch" placeholder="main" value="main" />
+          </label>
+          <label>Personal access token
+            <input type="password" id="cfg-pat" placeholder="github_pat_..." autocomplete="off" />
+          </label>
+          <p class="muted small">
+            Create a fine-grained PAT at
+            <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">
+              github.com/settings/personal-access-tokens
+            </a> with <em>Contents: Read and write</em> on this repo only.
+          </p>
+          <div class="row">
+            <button class="btn primary" id="cfg-save">Save & test</button>
+            <button class="btn ghost" id="cfg-pull">Pull from GitHub</button>
+            <button class="btn ghost" id="cfg-push">Push to GitHub</button>
+          </div>
+          <p id="cfg-status" class="status-msg"></p>
+        </div>
+
+        <div class="card">
+          <h2>Bookmarklet</h2>
+          <p>Drag this to your bookmarks bar — when you're on a Zillow listing page, click it to
+            send the listing to this dashboard.</p>
+          <p><a href="bookmarklet.html" class="btn primary">Set up bookmarklet →</a></p>
+        </div>
+
+        <div class="card">
+          <h2>Danger zone</h2>
+          <p class="muted">Wipes local state (cached listings, token, settings). Your GitHub
+            <code>listings.json</code> is unaffected.</p>
+          <button class="btn danger" id="cfg-reset">Reset local data</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ADD/EDIT MODAL -->
+  <div class="modal" id="edit-modal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-panel">
+      <header>
+        <h2 id="modal-title">Add listing</h2>
+        <button class="icon-btn" data-close aria-label="Close">×</button>
+      </header>
+      <form id="edit-form">
+        <div class="grid-2">
+          <label class="span-2">URL
+            <input type="url" name="url" placeholder="https://www.zillow.com/..." />
+          </label>
+          <label class="span-2">Address
+            <input type="text" name="address" required />
+          </label>
+          <label>City
+            <input type="text" name="city" />
+          </label>
+          <label>State
+            <input type="text" name="state" maxlength="2" />
+          </label>
+          <label>Zip
+            <input type="text" name="zip" />
+          </label>
+          <label>Home type
+            <input type="text" name="homeType" placeholder="Apartment, House, ..." />
+          </label>
+          <label>Price ($/mo)
+            <input type="number" name="price" min="0" step="1" />
+          </label>
+          <label>Beds
+            <input type="number" name="beds" min="0" step="0.5" />
+          </label>
+          <label>Baths
+            <input type="number" name="baths" min="0" step="0.5" />
+          </label>
+          <label>Sqft
+            <input type="number" name="sqft" min="0" step="1" />
+          </label>
+          <label>Latitude
+            <input type="number" name="lat" step="any" />
+          </label>
+          <label>Longitude
+            <input type="number" name="lng" step="any" />
+          </label>
+          <label>Available date
+            <input type="date" name="availableDate" />
+          </label>
+          <label>Pet policy
+            <input type="text" name="petPolicy" />
+          </label>
+          <label>Parking
+            <input type="text" name="parking" />
+          </label>
+          <label>Laundry
+            <input type="text" name="laundry" />
+          </label>
+          <label>Status
+            <select name="status">
+              <option value="interested">Interested</option>
+              <option value="visited">Visited</option>
+              <option value="applied">Applied</option>
+              <option value="favorited">Favorited</option>
+              <option value="rejected">Rejected</option>
+            </select>
+          </label>
+          <label>Rating (1-5)
+            <input type="number" name="rating" min="1" max="5" step="1" />
+          </label>
+          <label class="span-2">Tags (comma-separated)
+            <input type="text" name="tags" placeholder="quiet, near transit, fenced yard" />
+          </label>
+          <label class="span-2">Notes
+            <textarea name="notes" rows="3"></textarea>
+          </label>
+          <label class="span-2">Photo URL
+            <input type="url" name="photoUrl" />
+          </label>
+        </div>
+        <footer class="modal-footer">
+          <button type="button" class="btn ghost" data-close>Cancel</button>
+          <button type="button" class="btn danger" id="delete-btn" hidden>Delete</button>
+          <button type="submit" class="btn primary">Save</button>
+        </footer>
+      </form>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+          crossorigin=""></script>
+  <script src="app.js"></script>
+</body>
+</html>
