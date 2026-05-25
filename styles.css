@@ -391,6 +391,48 @@ td.col-photo, th.col-photo { width: 64px; padding: 6px 8px; }
 .status-msg.ok { color: var(--success); }
 .status-msg.err { color: var(--danger); }
 
+.advanced { margin-top: 12px; }
+.advanced summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-muted);
+  user-select: none;
+  padding: 2px 0;
+}
+.advanced summary:hover { color: var(--text); }
+.advanced[open] summary { margin-bottom: 4px; }
+
+.drag-area {
+  margin-top: 14px;
+  padding: 18px;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  text-align: center;
+  background: var(--bg);
+}
+.drag-link {
+  display: inline-block;
+  padding: 10px 22px;
+  background: var(--accent);
+  color: white;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+  cursor: grab;
+  user-select: none;
+  box-shadow: var(--shadow-md);
+}
+.drag-link:hover { background: var(--accent-hover); color: white; }
+.drag-link:active { cursor: grabbing; }
+kbd {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-family: ui-monospace, monospace;
+  font-size: 0.85em;
+}
+
 /* MODAL */
 .modal {
   position: fixed;

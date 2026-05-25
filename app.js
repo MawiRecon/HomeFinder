@@ -36,6 +36,165 @@ function saveLocal() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ config, listings, fileSha }));
 }
 
+/* ---------- GitHub Pages auto-detect ---------- */
+function detectGitHubContext() {
+  try {
+    const m = location.host.match(/^([^.]+)\.github\.io$/i);
+    if (!m) return null;
+    const owner = m[1];
+    const segs = location.pathname.split('/').filter(p => p && !/\.html?$/i.test(p));
+    const repo = segs[0] || `${owner}.github.io`;
+    return { owner, repo };
+  } catch { return null; }
+}
+
+/* ---------- bookmarklet (source kept readable, compiled at runtime) ---------- */
+const BOOKMARKLET_SOURCE = function () {
+  try {
+    var out = { url: location.href };
+    function num(s) {
+      if (s == null) return null;
+      var n = parseFloat(String(s).replace(/[^0-9.\-]/g, ''));
+      return isFinite(n) ? n : null;
+    }
+    function set(key, val) {
+      if (val == null || val === '' || (typeof val === 'number' && !isFinite(val))) return;
+      if (out[key] == null || out[key] === '') out[key] = val;
+    }
+    function walk(obj, fn, depth) {
+      depth = depth || 0;
+      if (depth > 10 || obj == null) return;
+      if (typeof obj !== 'object') return;
+      try { fn(obj); } catch (e) {}
+      for (var k in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, k)) {
+          walk(obj[k], fn, depth + 1);
+        }
+      }
+    }
+    var zpidMatch = location.href.match(/\/(\d+)_zpid/);
+    if (zpidMatch) set('zpid', zpidMatch[1]);
+    document.querySelectorAll('script[type="application/ld+json"]').forEach(function (s) {
+      try {
+        var arr = JSON.parse(s.textContent);
+        (Array.isArray(arr) ? arr : [arr]).forEach(function (obj) {
+          walk(obj, function (o) {
+            if (o['@type'] && o.address && typeof o.address === 'object') {
+              set('address', o.address.streetAddress);
+              set('city', o.address.addressLocality);
+              set('state', o.address.addressRegion);
+              set('zip', o.address.postalCode);
+            }
+            if (o['@type'] === 'GeoCoordinates' || (o.latitude && o.longitude)) {
+              set('lat', num(o.latitude));
+              set('lng', num(o.longitude));
+            }
+            if (o.geo && o.geo.latitude) {
+              set('lat', num(o.geo.latitude));
+              set('lng', num(o.geo.longitude));
+            }
+            if (o.floorSize && o.floorSize.value) set('sqft', num(o.floorSize.value));
+            if (o.numberOfBedrooms) set('beds', num(o.numberOfBedrooms));
+            if (o.numberOfBathroomsTotal) set('baths', num(o.numberOfBathroomsTotal));
+            if (o.image && typeof o.image === 'string') set('photoUrl', o.image);
+            if (o.image && o.image.url) set('photoUrl', o.image.url);
+            if (o.offers && o.offers.price) set('price', num(o.offers.price));
+            if (o['@type'] && /Residence|Apartment|House|Building/i.test(o['@type'])) {
+              set('homeType', String(o['@type']).replace(/([A-Z])/g, ' $1').trim());
+            }
+          });
+        });
+      } catch (e) {}
+    });
+    var nd = document.getElementById('__NEXT_DATA__');
+    if (nd) {
+      try {
+        var data = JSON.parse(nd.textContent);
+        walk(data, function (o) {
+          if (o.zpid && !out.zpid) set('zpid', String(o.zpid));
+          if (o.price && typeof o.price === 'number') set('price', o.price);
+          if (o.bedrooms != null) set('beds', num(o.bedrooms));
+          if (o.bathrooms != null) set('baths', num(o.bathrooms));
+          if (o.livingArea) set('sqft', num(o.livingArea));
+          if (o.livingAreaValue) set('sqft', num(o.livingAreaValue));
+          if (o.latitude && o.longitude) {
+            set('lat', num(o.latitude));
+            set('lng', num(o.longitude));
+          }
+          if (o.streetAddress) set('address', o.streetAddress);
+          if (o.city) set('city', o.city);
+          if (o.state) set('state', o.state);
+          if (o.zipcode) set('zip', o.zipcode);
+          if (o.homeType) set('homeType', String(o.homeType).replace(/_/g, ' ').toLowerCase());
+          if (o.hiResImageLink) set('photoUrl', o.hiResImageLink);
+        });
+        walk(data, function (o) {
+          if (o.gdpClientCache && typeof o.gdpClientCache === 'string') {
+            try {
+              var cache = JSON.parse(o.gdpClientCache);
+              walk(cache, function (c) {
+                if (c.zpid && !out.zpid) set('zpid', String(c.zpid));
+                if (typeof c.price === 'number') set('price', c.price);
+                if (c.bedrooms != null) set('beds', num(c.bedrooms));
+                if (c.bathrooms != null) set('baths', num(c.bathrooms));
+                if (c.livingArea) set('sqft', num(c.livingArea));
+                if (c.latitude && c.longitude) {
+                  set('lat', num(c.latitude));
+                  set('lng', num(c.longitude));
+                }
+                if (c.streetAddress) set('address', c.streetAddress);
+                if (c.city) set('city', c.city);
+                if (c.state) set('state', c.state);
+                if (c.zipcode) set('zip', c.zipcode);
+              });
+            } catch (e) {}
+          }
+        });
+      } catch (e) {}
+    }
+    function meta(name) {
+      var el = document.querySelector('meta[property="' + name + '"], meta[name="' + name + '"]');
+      return el ? el.getAttribute('content') : null;
+    }
+    set('photoUrl', meta('og:image'));
+    var ogTitle = meta('og:title') || document.title || '';
+    var priceM = ogTitle.match(/\$([0-9][\d,]*)/);
+    if (priceM) set('price', num(priceM[1]));
+    var bedM = ogTitle.match(/(\d+(?:\.\d+)?)\s*bd\b/i) || ogTitle.match(/(\d+(?:\.\d+)?)\s*bed/i);
+    if (bedM) set('beds', num(bedM[1]));
+    var baM = ogTitle.match(/(\d+(?:\.\d+)?)\s*ba\b/i) || ogTitle.match(/(\d+(?:\.\d+)?)\s*bath/i);
+    if (baM) set('baths', num(baM[1]));
+    var sqM = ogTitle.match(/(\d[\d,]*)\s*sqft\b/i) || ogTitle.match(/(\d[\d,]*)\s*sq\s*ft/i);
+    if (sqM) set('sqft', num(sqM[1]));
+    if (!out.address && (out.city || out.state)) {
+      out.address = [out.city, out.state, out.zip].filter(Boolean).join(', ');
+    }
+    var json = JSON.stringify(out);
+    var b64 = btoa(unescape(encodeURIComponent(json)));
+    var dest = '__DASHBOARD_URL__' + (('__DASHBOARD_URL__').indexOf('?') > -1 ? '&' : '?') + 'add=' + encodeURIComponent(b64);
+    window.open(dest, '_blank');
+  } catch (e) {
+    alert('HomeFinder bookmarklet failed: ' + (e && e.message ? e.message : e));
+  }
+};
+
+function compileBookmarklet(dashboardUrl) {
+  let src = BOOKMARKLET_SOURCE.toString();
+  // Strip line comments BEFORE substituting the URL — otherwise the // in https:// gets eaten.
+  src = src.replace(/\/\/[^\n]*\n/g, '\n');
+  src = src.replace(/\n\s*/g, ' ');
+  src = src.replace(/\s{2,}/g, ' ');
+  src = src.replace(/__DASHBOARD_URL__/g, dashboardUrl);
+  return 'javascript:(' + src + ')();void 0;';
+}
+
+function installBookmarkletLink() {
+  const link = $('#drag-link');
+  if (!link) return;
+  const dashboardUrl = location.origin + location.pathname.replace(/[^/]*$/, '');
+  link.href = compileBookmarklet(dashboardUrl);
+}
+
 /* ---------- helpers ---------- */
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -630,7 +789,14 @@ function bindEvents() {
 
 async function init() {
   loadLocal();
+  // Auto-detect owner/repo from the dashboard URL on first load (only if not already set).
+  const ctx = detectGitHubContext();
+  if (ctx) {
+    if (!state.config.owner) state.config.owner = ctx.owner;
+    if (!state.config.repo) state.config.repo = ctx.repo;
+  }
   loadConfigUi();
+  installBookmarkletLink();
   bindEvents();
   if (isConfigured()) {
     setSync('syncing', 'Loading…');

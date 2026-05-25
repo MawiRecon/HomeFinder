@@ -92,31 +92,40 @@
     <section class="view view-settings" data-view="settings">
       <div class="settings-grid">
         <div class="card">
-          <h2>GitHub sync</h2>
-          <p class="muted">Listings are stored as <code>data/listings.json</code> in your repo.
-            The token is saved only in your browser (localStorage).</p>
+          <h2>Sync to GitHub</h2>
+          <p class="muted">Listings live in <code>data/listings.json</code>. Each user needs their own access token —
+            it stays only in your browser. If you're new here and someone else owns this repo,
+            ask them to add you as a collaborator first.</p>
+
           <label>Repo owner
-            <input type="text" id="cfg-owner" placeholder="your-github-username" />
+            <input type="text" id="cfg-owner" placeholder="github-username" />
           </label>
           <label>Repo name
             <input type="text" id="cfg-repo" placeholder="HomeFinder" />
           </label>
-          <label>Branch
-            <input type="text" id="cfg-branch" placeholder="main" value="main" />
-          </label>
-          <label>Personal access token
+
+          <label>Your access token
             <input type="password" id="cfg-pat" placeholder="github_pat_..." autocomplete="off" />
           </label>
-          <p class="muted small">
-            Create a fine-grained PAT at
-            <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">
-              github.com/settings/personal-access-tokens
-            </a> with <em>Contents: Read and write</em> on this repo only.
+          <p class="muted small" style="margin-top:8px">
+            <a href="https://github.com/settings/personal-access-tokens/new?description=HomeFinder%20dashboard" target="_blank" rel="noopener">
+              <strong>→ Create a token</strong>
+            </a>
+            &nbsp;Then set <em>Repository access</em> → <em>Only select repositories</em> → this repo,
+            and <em>Permissions → Contents: Read and write</em>.
           </p>
+
+          <details class="advanced">
+            <summary>Advanced</summary>
+            <label>Branch
+              <input type="text" id="cfg-branch" value="main" />
+            </label>
+          </details>
+
           <div class="row">
             <button class="btn primary" id="cfg-save">Save & test</button>
-            <button class="btn ghost" id="cfg-pull">Pull from GitHub</button>
-            <button class="btn ghost" id="cfg-push">Push to GitHub</button>
+            <button class="btn ghost" id="cfg-pull">Pull</button>
+            <button class="btn ghost" id="cfg-push">Push</button>
           </div>
           <p id="cfg-status" class="status-msg"></p>
         </div>
@@ -138,9 +147,12 @@
 
         <div class="card">
           <h2>Bookmarklet</h2>
-          <p>Drag this to your bookmarks bar — when you're on a Zillow listing page, click it to
-            send the listing to this dashboard.</p>
-          <p><a href="bookmarklet.html" class="btn primary">Set up bookmarklet →</a></p>
+          <p class="muted">Drag this button to your browser's bookmarks bar. Then on any Zillow listing,
+            click the bookmark to send it to this dashboard. (Press <kbd>Ctrl+Shift+B</kbd> if the
+            bookmarks bar is hidden.)</p>
+          <div class="drag-area">
+            <a id="drag-link" class="drag-link" href="javascript:void(0)" draggable="true">+ Add to HomeFinder</a>
+          </div>
         </div>
 
         <div class="card">
