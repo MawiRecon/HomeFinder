@@ -1,1 +1,23 @@
-[]
+[
+  {
+    "id": "gqu7ngc4z5ra",
+    "addedAt": "2026-05-25T18:41:51.334Z",
+    "updatedAt": "2026-05-25T18:41:51.334Z",
+    "status": "interested",
+    "tags": [],
+    "url": "https://www.zillow.com/homedetails/903-Crestview-Dr-Herndon-VA-20170/51702754_zpid/",
+    "address": "903 Crestview Dr",
+    "city": "Herndon",
+    "state": "VA",
+    "zip": "20170",
+    "homeType": "Single Family Residence",
+    "price": 3400,
+    "beds": 3,
+    "baths": 3,
+    "sqft": 2664,
+    "lat": 38.974678,
+    "lng": -77.400406,
+    "photoUrl": "https://photos.zillowstatic.com/fp/531a63caf453a056d405d174506242de-cc_ft_1536.jpg",
+    "pricePerSqft": 1.28
+  }
+]
