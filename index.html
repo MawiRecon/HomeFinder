@@ -60,7 +60,7 @@
               <th data-sort="beds" class="num">Bd</th>
               <th data-sort="baths" class="num">Ba</th>
               <th data-sort="sqft" class="num">Sqft</th>
-              <th data-sort="pricePerSqft" class="num">$/sqft</th>
+              <th data-sort="availableDate" class="col-date">Move-In</th>
               <th data-sort="lcDistance" class="num col-lc">LC mi</th>
               <th data-sort="rating" class="num">★</th>
               <th data-sort="yard" class="col-attr">Yard</th>
@@ -108,11 +108,14 @@
     <section class="view view-map" data-view="map">
       <div id="map"></div>
       <div class="map-legend">
+        <label class="map-toggle">
+          <input type="checkbox" id="show-rejected-map" /> Show rejected
+        </label>
         <span><i class="dot s-interested"></i>Interested</span>
         <span><i class="dot s-visited"></i>Visited</span>
         <span><i class="dot s-applied"></i>Applied</span>
         <span><i class="dot s-favorited"></i>Favorited</span>
-        <span><i class="dot s-rejected"></i>Rejected</span>
+        <span class="rejected-legend-item"><i class="dot s-rejected"></i>Rejected</span>
       </div>
     </section>
 
@@ -257,7 +260,7 @@
           <label>Longitude
             <input type="number" name="lng" step="any" />
           </label>
-          <label>Available date
+          <label>Move-In date
             <input type="date" name="availableDate" />
           </label>
           <label>Pet policy

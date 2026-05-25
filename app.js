@@ -54,6 +54,7 @@ const state = {
   sort: { key: 'addedAt', dir: 'desc' },
   filter: { status: '', search: '' },
   showRejected: false,
+  showRejectedOnMap: false,
   editingId: null,
   syncStatus: 'unconfigured', // unconfigured | ok | dirty | error
   map: null,
@@ -250,6 +251,13 @@ const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 function uid() { return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4); }
 function nowIso() { return new Date().toISOString(); }
 function fmtMoney(n) { return n == null || n === '' ? '' : '$' + Number(n).toLocaleString(); }
+function fmtDate(d) {
+  if (!d) return '';
+  const m = String(d).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return d;
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${months[+m[2] - 1]} ${+m[3]}, ${m[1]}`;
+}
 function fmtNum(n, digits = 0) { return n == null || n === '' ? '' : Number(n).toFixed(digits); }
 function safe(s) { return (s == null ? '' : String(s)); }
 
@@ -626,7 +634,7 @@ function renderRow(l, extraClass = '') {
     <td class="num">${safe(l.beds)}</td>
     <td class="num">${safe(l.baths)}</td>
     <td class="num">${safe(l.sqft)}</td>
-    <td class="num">${l.pricePerSqft != null ? '$' + l.pricePerSqft.toFixed(2) : ''}</td>
+    <td class="col-date">${escapeHtml(fmtDate(l.availableDate))}</td>
     <td class="num col-lc">${(() => { const d = getLcDistance(l); return d == null ? '' : d.toFixed(1); })()}</td>
     <td class="num">${star}</td>
     <td class="col-attr" title="${escapeAttr(safe(l.yard))}">${escapeHtml(safe(l.yard))}</td>
@@ -695,7 +703,8 @@ function renderMap() {
   const withCoords = state.listings.filter(l =>
     l.lat != null && l.lng != null &&
     Number.isFinite(+l.lat) && Number.isFinite(+l.lng) &&
-    Math.abs(+l.lat) <= 90 && Math.abs(+l.lng) <= 180
+    Math.abs(+l.lat) <= 90 && Math.abs(+l.lng) <= 180 &&
+    (state.showRejectedOnMap || l.status !== 'rejected')
   );
   if (withCoords.length === 0) return;
 
@@ -1109,6 +1118,11 @@ function bindEvents() {
   $('#cfg-lc').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saveLcAnchor(); } });
   $('#embed-save').addEventListener('click', saveEmbeddedToken);
   $('#embed-clear').addEventListener('click', clearEmbeddedToken);
+
+  $('#show-rejected-map').addEventListener('change', (e) => {
+    state.showRejectedOnMap = e.target.checked;
+    if (state.view === 'map') renderMap();
+  });
 
   $('#link-add').addEventListener('click', addLinkFromInput);
   $('#link-input').addEventListener('keydown', (e) => {
