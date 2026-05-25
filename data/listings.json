@@ -118,8 +118,8 @@
   {
     "id": "np459vp0qbyb",
     "addedAt": "2026-05-25T19:02:59.075Z",
-    "updatedAt": "2026-05-25T19:02:59.075Z",
-    "status": "interested",
+    "updatedAt": "2026-05-25T19:57:58.382Z",
+    "status": "rejected",
     "tags": [],
     "url": "https://www.zillow.com/homedetails/11635-Hunters-Green-Ct-Reston-VA-20191/51722090_zpid/?utm_campaign=zillowwebmessage&utm_medium=referral&utm_source=txtshare",
     "address": "11635 Hunters Green Ct",
@@ -137,7 +137,12 @@
     "parking": "?",
     "laundry": "In unit laundry",
     "photoUrl": "https://photos.zillowstatic.com/fp/6376b09da2f6da5cb4d124719f9b256a-cc_ft_1536.jpg",
-    "pricePerSqft": 1.82
+    "pricePerSqft": 1.82,
+    "availableDate": "",
+    "yard": "",
+    "carpet": "",
+    "rating": null,
+    "notes": ""
   },
   {
     "id": "gbthp92aossw",
