@@ -228,7 +228,11 @@ function renderTable() {
   tbody.innerHTML = rows.map(l => {
     const tags = (l.tags || []).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('');
     const star = l.rating ? '★'.repeat(l.rating) : '';
+    const thumb = l.photoUrl
+      ? `<img class="thumb" src="${escapeAttr(l.photoUrl)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none'">`
+      : `<span class="thumb thumb-empty" aria-hidden="true"></span>`;
     return `<tr data-id="${l.id}">
+      <td class="col-photo">${thumb}</td>
       <td class="col-status"><span class="status-pill ${l.status}">${l.status || ''}</span></td>
       <td>
         <div>${escapeHtml(l.address || '(no address)')}</div>
@@ -287,8 +291,11 @@ function renderMap() {
       iconAnchor: [9, 9],
     });
     const m = L.marker([+l.lat, +l.lng], { icon }).addTo(state.map);
+    const popupThumb = l.photoUrl
+      ? `<img class="popup-thumb" src="${escapeAttr(l.photoUrl)}" alt="" referrerpolicy="no-referrer" onerror="this.style.display='none'"><br>`
+      : '';
     const popup = `
-      <strong>${escapeHtml(l.address || '(no address)')}</strong><br>
+      ${popupThumb}<strong>${escapeHtml(l.address || '(no address)')}</strong><br>
       ${l.price ? fmtMoney(l.price) + '/mo · ' : ''}${l.beds || ''}bd ${l.baths || ''}ba ${l.sqft ? '· ' + l.sqft + ' sqft' : ''}
       <br><a href="#" data-edit-id="${l.id}">Edit</a>${l.url ? ' · <a href="' + escapeAttr(l.url) + '" target="_blank" rel="noopener">Listing ↗</a>' : ''}
     `;

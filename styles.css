@@ -235,6 +235,34 @@ th.sorted-desc::after { content: " ↓"; color: var(--accent); }
 tbody tr:hover { background: var(--surface-2); cursor: pointer; }
 tbody tr:last-child td { border-bottom: none; }
 
+td.col-photo, th.col-photo { width: 64px; padding: 6px 8px; }
+.thumb {
+  display: block;
+  width: 56px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.thumb-empty::before {
+  content: "";
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--surface-2);
+  border-radius: 4px;
+}
+.popup-thumb {
+  width: 220px;
+  max-width: 100%;
+  height: 130px;
+  object-fit: cover;
+  border-radius: 4px;
+  margin-bottom: 6px;
+  display: block;
+}
+
 .status-pill {
   display: inline-block;
   padding: 2px 9px;
