@@ -147,8 +147,8 @@
   {
     "id": "gbthp92aossw",
     "addedAt": "2026-05-25T19:01:47.600Z",
-    "updatedAt": "2026-05-25T19:01:47.600Z",
-    "status": "interested",
+    "updatedAt": "2026-05-25T19:58:01.778Z",
+    "status": "rejected",
     "tags": [],
     "url": "https://www.zillow.com/homedetails/157-S-Virginia-Ave-387-Falls-Church-VA-22046/12228801_zpid/?utm_campaign=zillowwebmessage&utm_medium=referral&utm_source=txtshare",
     "address": "157 S Virginia Ave #387",
@@ -166,7 +166,12 @@
     "parking": "Assigned parking",
     "laundry": "In unit laundry",
     "photoUrl": "https://photos.zillowstatic.com/fp/0bf5adc86fedb1a60ca37d19017525e1-cc_ft_1536.jpg",
-    "pricePerSqft": 3.52
+    "pricePerSqft": 3.52,
+    "availableDate": "",
+    "yard": "",
+    "carpet": "",
+    "rating": null,
+    "notes": ""
   },
   {
     "id": "k5obv4lqj6d7",
