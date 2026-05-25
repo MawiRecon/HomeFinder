@@ -2,8 +2,8 @@
   {
     "id": "k6ej3i3gnwz8",
     "addedAt": "2026-05-25T19:29:05.972Z",
-    "updatedAt": "2026-05-25T19:43:45.353Z",
-    "status": "interested",
+    "updatedAt": "2026-05-25T19:51:26.955Z",
+    "status": "rejected",
     "tags": [],
     "url": "https://www.faradaypark.com/",
     "address": "Faraday Park Apts: 11201 Reston Station Blvd",
@@ -22,7 +22,11 @@
     "laundry": "In unit laundry",
     "photoUrl": "https://images1.apartments.com/i2/ocbleaGJ0TAbdKUbQ8_FapVfqd3VKKUTSe1NK6vKW5w/110/faraday-park-reston-va-building-photo.jpg",
     "pricePerSqft": 4.38,
-    "notes": "Faraday Park Apts"
+    "notes": "Faraday Park Apts",
+    "homeType": "",
+    "yard": "",
+    "carpet": "",
+    "rating": null
   },
   {
     "id": "u4xd4c8n3mt5",
