@@ -98,6 +98,9 @@ const BOOKMARKLET_SOURCE = function () {
     }
     function set(key, val) {
       if (val == null || val === '' || (typeof val === 'number' && !isFinite(val))) return;
+      // Reject out-of-range coordinates — guards against malformed Zillow data.
+      if (key === 'lat' && (typeof val !== 'number' || Math.abs(val) > 90)) return;
+      if (key === 'lng' && (typeof val !== 'number' || Math.abs(val) > 180)) return;
       if (out[key] == null || out[key] === '') out[key] = val;
     }
     function walk(obj, fn, depth) {
@@ -530,7 +533,11 @@ function renderMap() {
   state.markers.forEach(m => state.map.removeLayer(m));
   state.markers = [];
 
-  const withCoords = state.listings.filter(l => Number.isFinite(+l.lat) && Number.isFinite(+l.lng));
+  const withCoords = state.listings.filter(l =>
+    l.lat != null && l.lng != null &&
+    Number.isFinite(+l.lat) && Number.isFinite(+l.lng) &&
+    Math.abs(+l.lat) <= 90 && Math.abs(+l.lng) <= 180
+  );
   if (withCoords.length === 0) return;
 
   const colors = {
@@ -597,14 +604,17 @@ function closeModal() {
 function formToListing(form) {
   const fd = new FormData(form);
   const o = {};
-  for (const [k, v] of fd.entries()) {
-    if (v === '') continue;
-    o[k] = v;
-  }
+  // Include all fields (including empty) so blanks clear existing values.
+  for (const [k, v] of fd.entries()) o[k] = v;
   ['price', 'beds', 'baths', 'sqft', 'lat', 'lng', 'rating'].forEach(k => {
-    if (o[k] !== undefined) o[k] = Number(o[k]);
+    if (o[k] === '' || o[k] == null) o[k] = null;
+    else o[k] = Number(o[k]);
   });
-  if (o.tags) o.tags = o.tags.split(',').map(s => s.trim()).filter(Boolean);
+  if ('tags' in o) {
+    o.tags = typeof o.tags === 'string' && o.tags.trim()
+      ? o.tags.split(',').map(s => s.trim()).filter(Boolean)
+      : [];
+  }
   return o;
 }
 
