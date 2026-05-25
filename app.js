@@ -3,6 +3,7 @@
 
 const STORAGE_KEY = 'homefinder.v1';
 const DATA_PATH = 'data/listings.json';
+const LINKS_PATH = 'data/links.json';
 const EMBED_PATH = 'data/embedded-token.txt';
 const EMBED_KEY = 'HomeFinder-2026';
 let embeddedTokenCache = '';
@@ -46,6 +47,8 @@ function getEffectivePat() {
 const state = {
   listings: [],
   fileSha: null,
+  links: [],
+  linksSha: null,
   config: { owner: '', repo: '', branch: 'main', pat: '', lcAnchor: { query: '', lat: null, lng: null, displayName: '' } },
   view: 'table',
   sort: { key: 'addedAt', dir: 'desc' },
@@ -69,11 +72,13 @@ function loadLocal() {
     }
     if (Array.isArray(obj.listings)) state.listings = obj.listings;
     if (obj.fileSha) state.fileSha = obj.fileSha;
+    if (Array.isArray(obj.links)) state.links = obj.links;
+    if (obj.linksSha) state.linksSha = obj.linksSha;
   } catch (e) { console.warn('loadLocal failed', e); }
 }
 function saveLocal() {
-  const { config, listings, fileSha } = state;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ config, listings, fileSha }));
+  const { config, listings, fileSha, links, linksSha } = state;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ config, listings, fileSha, links, linksSha }));
 }
 
 /* ---------- GitHub Pages auto-detect ---------- */
@@ -405,6 +410,135 @@ async function pushToGitHub() {
   }
 }
 
+/* ---------- Links (Zillow URLs LC sends, awaiting triage) ---------- */
+async function ghGetLinks() {
+  const { owner, repo, branch } = state.config;
+  const pat = getEffectivePat();
+  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${LINKS_PATH}?ref=${encodeURIComponent(branch || 'main')}`;
+  const res = await fetch(url, {
+    headers: { 'Authorization': `Bearer ${pat}`, 'Accept': 'application/vnd.github+json' },
+  });
+  if (res.status === 404) return { sha: null, links: [] };
+  if (!res.ok) throw new Error(`GET links failed: ${res.status}`);
+  const data = await res.json();
+  const text = decodeURIComponent(escape(atob(data.content.replace(/\s/g, ''))));
+  let links = [];
+  try { links = JSON.parse(text); } catch { links = []; }
+  if (!Array.isArray(links)) links = [];
+  return { sha: data.sha, links };
+}
+
+async function ghPutLinks(links, sha) {
+  const { owner, repo, branch } = state.config;
+  const pat = getEffectivePat();
+  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${LINKS_PATH}`;
+  const content = btoa(unescape(encodeURIComponent(JSON.stringify(links, null, 2))));
+  const body = {
+    message: `Update links (${new Date().toISOString()})`,
+    content,
+    branch: branch || 'main',
+  };
+  if (sha) body.sha = sha;
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Authorization': `Bearer ${pat}`, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`PUT links failed: ${res.status} ${await res.text()}`);
+  const data = await res.json();
+  return data.content.sha;
+}
+
+async function pullLinks() {
+  if (!isConfigured()) return;
+  try {
+    const r = await ghGetLinks();
+    state.linksSha = r.sha;
+    state.links = r.links;
+    saveLocal();
+    renderLinks();
+  } catch (e) { /* silent: likely just no file yet */ }
+}
+
+async function pushLinks() {
+  if (!isConfigured()) return;
+  try {
+    state.linksSha = await ghPutLinks(state.links, state.linksSha);
+    saveLocal();
+  } catch (e) {
+    if (/\b409\b/.test(e.message)) {
+      try {
+        const remote = await ghGetLinks();
+        const byId = new Map();
+        for (const r of remote.links) byId.set(r.id, r);
+        for (const l of state.links) byId.set(l.id, l);
+        state.links = Array.from(byId.values());
+        state.linksSha = await ghPutLinks(state.links, remote.sha);
+        saveLocal();
+        renderLinks();
+        showToast('Resolved links conflict', 'ok');
+      } catch (e2) {
+        showToast('Links push failed: ' + e2.message, 'err');
+      }
+    } else {
+      showToast('Links push failed: ' + e.message, 'err');
+    }
+  }
+}
+
+function cleanUrl(url) {
+  try {
+    const u = new URL(url);
+    Array.from(u.searchParams.keys()).forEach(k => {
+      if (/^(utm_|fbclid|gclid|mc_|ref$)/i.test(k)) u.searchParams.delete(k);
+    });
+    return u.toString();
+  } catch { return url; }
+}
+
+function addLinkFromInput() {
+  const raw = $('#link-input').value.trim();
+  if (!raw) return;
+  const urls = raw.split(/[\n,]+/).map(s => s.trim()).filter(Boolean).map(cleanUrl);
+  let added = 0;
+  for (const url of urls) {
+    if (state.links.some(l => l.url === url)) continue;
+    state.links.unshift({ id: uid(), url, addedAt: nowIso() });
+    added++;
+  }
+  $('#link-input').value = '';
+  saveLocal();
+  renderLinks();
+  if (added > 0) {
+    showToast(`Added ${added} link${added === 1 ? '' : 's'}`, 'ok');
+    pushLinks();
+  } else {
+    showToast('No new links (duplicates skipped)');
+  }
+}
+
+function deleteLink(id) {
+  state.links = state.links.filter(l => l.id !== id);
+  saveLocal();
+  renderLinks();
+  pushLinks();
+}
+
+function renderLinks() {
+  const tbody = $('#links-tbody');
+  if (!tbody) return;
+  $('#links-empty').hidden = state.links.length > 0;
+  tbody.innerHTML = state.links.map(l => {
+    const display = l.url.length > 90 ? l.url.slice(0, 90) + '…' : l.url;
+    const added = l.addedAt ? new Date(l.addedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
+    return `<tr data-id="${l.id}">
+      <td><a href="${escapeAttr(l.url)}" target="_blank" rel="noopener" title="${escapeAttr(l.url)}">${escapeHtml(display)}</a></td>
+      <td class="muted small">${added}</td>
+      <td><button class="btn-tiny" data-delete-link="${l.id}" aria-label="Delete">×</button></td>
+    </tr>`;
+  }).join('');
+}
+
 /* ---------- CRUD ---------- */
 function findByUrlOrZpid(listing) {
   if (listing.zpid) {
@@ -446,6 +580,7 @@ function deleteListing(id) {
 function render() {
   $('#listing-count').textContent = `${state.listings.length} listing${state.listings.length === 1 ? '' : 's'}`;
   renderTable();
+  renderLinks();
   if (state.view === 'map') renderMap();
 }
 
@@ -975,6 +1110,17 @@ function bindEvents() {
   $('#embed-save').addEventListener('click', saveEmbeddedToken);
   $('#embed-clear').addEventListener('click', clearEmbeddedToken);
 
+  $('#link-add').addEventListener('click', addLinkFromInput);
+  $('#link-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addLinkFromInput(); }
+  });
+  $('#links-tbody').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-delete-link]');
+    if (!btn) return;
+    e.stopPropagation();
+    if (confirm('Delete this link?')) deleteLink(btn.dataset.deleteLink);
+  });
+
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     if (!$('#lightbox').hidden) closeLightbox();
@@ -1016,6 +1162,7 @@ async function init() {
       setSync('error');
       showToast('Could not load from GitHub: ' + e.message, 'err');
     }
+    pullLinks(); // fire-and-forget; links are non-critical
   }
   render();
   handleAddParam();

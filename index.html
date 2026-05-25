@@ -18,6 +18,7 @@
     <nav class="view-tabs" role="tablist">
       <button class="tab active" data-view="table" role="tab">Table</button>
       <button class="tab" data-view="map" role="tab">Map</button>
+      <button class="tab" data-view="links" role="tab">Links</button>
       <button class="tab" data-view="settings" role="tab">Settings</button>
     </nav>
     <div class="header-actions">
@@ -75,6 +76,30 @@
           <p>No listings yet.</p>
           <p class="muted">Use the <strong>+ Add listing</strong> button, or set up the bookmarklet
             in <a href="bookmarklet.html">bookmarklet setup</a> to capture from Zillow with one click.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- LINKS VIEW -->
+    <section class="view view-links" data-view="links">
+      <div class="toolbar">
+        <input type="url" id="link-input" placeholder="Paste a URL (or multiple, one per line)..." style="flex:1; min-width:0" />
+        <button class="btn primary" id="link-add">Add</button>
+      </div>
+      <div class="table-wrap">
+        <table id="links-table">
+          <thead>
+            <tr>
+              <th>Link</th>
+              <th>Added</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="links-tbody"></tbody>
+        </table>
+        <div class="empty-state" id="links-empty" hidden>
+          <p>No links yet.</p>
+          <p class="muted">Paste a URL above and click <strong>Add</strong>. Multiple URLs (one per line) work too.</p>
         </div>
       </div>
     </section>
