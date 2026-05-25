@@ -443,12 +443,13 @@ function renderTable() {
     const thumb = l.photoUrl
       ? `<img class="thumb" src="${escapeAttr(l.photoUrl)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none'">`
       : `<span class="thumb thumb-empty" aria-hidden="true"></span>`;
+    const notesText = safe(l.notes);
     return `<tr data-id="${l.id}">
       <td class="col-photo">${thumb}</td>
       <td class="col-status"><span class="status-pill ${l.status}">${l.status || ''}</span></td>
-      <td>
-        <div>${escapeHtml(l.address || '(no address)')}</div>
-        ${l.city || l.state ? `<div class="muted small">${escapeHtml([l.city, l.state, l.zip].filter(Boolean).join(', '))}</div>` : ''}
+      <td class="col-address">
+        <div class="addr-line" title="${escapeAttr(l.address || '')}">${escapeHtml(l.address || '(no address)')}</div>
+        ${l.city || l.state ? `<div class="muted small addr-line">${escapeHtml([l.city, l.state, l.zip].filter(Boolean).join(', '))}</div>` : ''}
       </td>
       <td class="num">${fmtMoney(l.price)}</td>
       <td class="num">${safe(l.beds)}</td>
@@ -458,6 +459,7 @@ function renderTable() {
       <td class="num col-lc">${(() => { const d = getLcDistance(l); return d == null ? '' : d.toFixed(1); })()}</td>
       <td class="num">${star}</td>
       <td>${tags}</td>
+      <td class="col-notes" title="${escapeAttr(notesText)}"><div class="notes-text">${escapeHtml(notesText)}</div></td>
       <td>${l.url ? `<a class="row-link" href="${escapeAttr(l.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">↗</a>` : ''}</td>
     </tr>`;
   }).join('');
@@ -766,8 +768,19 @@ function bindEvents() {
   $('#listings-tbody').addEventListener('click', (e) => {
     const tr = e.target.closest('tr[data-id]');
     if (!tr) return;
+    // Thumbnail click → open lightbox, don't open the edit modal
+    if (e.target.tagName === 'IMG' && e.target.classList.contains('thumb')) {
+      e.stopPropagation();
+      openLightbox(e.target.src);
+      return;
+    }
     if (e.target.closest('a')) return;
     openEditModal(tr.dataset.id);
+  });
+
+  $('#lightbox').addEventListener('click', (e) => {
+    if (e.target === $('#lightbox-img')) return;
+    closeLightbox();
   });
 
   $('#export-btn').addEventListener('click', exportJson);
@@ -783,8 +796,19 @@ function bindEvents() {
   $('#cfg-lc').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saveLcAnchor(); } });
 
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !$('#edit-modal').hidden) closeModal();
+    if (e.key !== 'Escape') return;
+    if (!$('#lightbox').hidden) closeLightbox();
+    else if (!$('#edit-modal').hidden) closeModal();
   });
+}
+
+function openLightbox(src) {
+  $('#lightbox-img').src = src;
+  $('#lightbox').hidden = false;
+}
+function closeLightbox() {
+  $('#lightbox').hidden = true;
+  $('#lightbox-img').src = '';
 }
 
 async function init() {
