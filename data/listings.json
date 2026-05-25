@@ -234,8 +234,8 @@
   {
     "id": "b1nn3epc7fc7",
     "addedAt": "2026-05-25T18:48:16.999Z",
-    "updatedAt": "2026-05-25T18:48:16.999Z",
-    "status": "interested",
+    "updatedAt": "2026-05-25T19:58:13.689Z",
+    "status": "rejected",
     "tags": [],
     "url": "https://www.zillow.com/homedetails/13410-Pocono-Ct-Herndon-VA-20170/51713060_zpid/?utm_campaign=zillowwebmessage&utm_medium=referral&utm_source=txtshare",
     "address": "13410 Pocono Ct",
@@ -253,7 +253,12 @@
     "parking": "Attached garage parking",
     "laundry": "In unit laundry",
     "photoUrl": "https://photos.zillowstatic.com/fp/583bd353f6a54494ee94ef2f04838e31-cc_ft_1536.jpg",
-    "pricePerSqft": 1.45
+    "pricePerSqft": 1.45,
+    "availableDate": "",
+    "yard": "",
+    "carpet": "",
+    "rating": null,
+    "notes": ""
   },
   {
     "id": "ms2otfd55sze",
