@@ -60,8 +60,8 @@
   {
     "id": "a9b80a42txsa",
     "addedAt": "2026-05-25T19:05:47.338Z",
-    "updatedAt": "2026-05-25T19:05:47.338Z",
-    "status": "interested",
+    "updatedAt": "2026-05-25T19:57:48.833Z",
+    "status": "rejected",
     "tags": [],
     "url": "https://www.zillow.com/homedetails/1946-Sagewood-Ln-Reston-VA-20191/51742428_zpid/?utm_campaign=zillowwebmessage&utm_medium=referral&utm_source=txtshare",
     "address": "1946 Sagewood Ln",
@@ -79,7 +79,12 @@
     "parking": "Off street parking",
     "laundry": "In unit laundry",
     "photoUrl": "https://photos.zillowstatic.com/fp/89c16727066e9fbf84fa13692722bcdc-cc_ft_1536.jpg",
-    "pricePerSqft": 2.05
+    "pricePerSqft": 2.05,
+    "availableDate": "",
+    "yard": "",
+    "carpet": "",
+    "rating": null,
+    "notes": ""
   },
   {
     "id": "gyiixtv3srvq",
